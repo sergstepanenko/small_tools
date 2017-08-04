@@ -7,11 +7,26 @@
 #define TOUCHFILE1 "/dev/input/event1\0"
 
 #define TOUCHSCREENS_COUNT 2
+
+#define TOUCHES_COUNT 10
+
+struct TouchEvent
+{
+    int32_t trackingID;
+    int32_t x;
+    int32_t y;
+    char state;
+};
+
 //
 int main()
 {
     struct input_event ie;
-    int slot;
+    int slot=0;
+
+    struct TouchEvent touchEvent[TOUCHES_COUNT];
+
+    memset(touchEvent, 0, sizeof(touchEvent));
 
     int fds[TOUCHSCREENS_COUNT], maxfd, j, result;
     fd_set readset;
@@ -73,10 +88,10 @@ int main()
                                 switch (ie.code)
                                 {
                                     case BTN_TOUCH:
-                                        printf("Touchscreen %d: EV_KEY BTN_TOUCH Value=%X\n", j, ie.value);
+                                        //printf("Touchscreen %d: EV_KEY BTN_TOUCH Value=%X\n", j, ie.value);
                                         break;
                                     default:
-                                        printf("Touchscreen %d: EV_KEY ! Uknown Code=%X Value=%X\n", j, ie.code, ie.value);
+                                        //printf("Touchscreen %d: EV_KEY ! Uknown Code=%X Value=%X\n", j, ie.code, ie.value);
                                         break;
                                 }
                                 break;
@@ -94,13 +109,28 @@ int main()
                                         //printf("Touchscreen %d: EV_ABS ABS_MT_SLOT Value=%X\n", j, ie.value);
                                         break;
                                     case ABS_MT_POSITION_X:
-                                        printf("Touchscreen %d: EV_ABS ABS_MT_POSITION_X Slot=%d Value=%X\n", j, slot, ie.value);
+                                        if (touchEvent[slot].x != ie.value)
+                                        {
+                                            touchEvent[slot].state |= 0x10; //changed
+                                            touchEvent[slot].x = ie.value;
+                                        }
+                                        touchEvent[slot].state |= 0x2; //has X
+                                        //printf("Touchscreen %d: EV_ABS ABS_MT_POSITION_X Slot=%d Value=%X\n", j, slot, ie.value);
                                         break;
                                     case ABS_MT_POSITION_Y:
-                                        printf("Touchscreen %d: EV_ABS ABS_MT_POSITION_Y Slot=%d Value=%X\n", j, slot, ie.value);
+                                        if (touchEvent[slot].y != ie.value)
+                                        {
+                                            touchEvent[slot].state |= 0x10; //changed
+                                            touchEvent[slot].y = ie.value;
+                                        }
+                                        touchEvent[slot].state |= 0x4; //has Y
+                                        //printf("Touchscreen %d: EV_ABS ABS_MT_POSITION_Y Slot=%d Value=%X\n", j, slot, ie.value);
                                         break;
                                     case ABS_MT_TRACKING_ID:
-                                        printf("Touchscreen %d: EV_ABS ABS_MT_TRACKING_ID Slot=%d Value=%X\n", j, slot, ie.value);
+                                        touchEvent[slot].trackingID = ie.value;
+                                        touchEvent[slot].state |= 0x1; //has Tracking ID
+                                        touchEvent[slot].state |= 0x10; //changed
+                                        //printf("Touchscreen %d: EV_ABS ABS_MT_TRACKING_ID Slot=%d Value=%X\n", j, slot, ie.value);
                                         break;
                                     default:
                                         printf("Touchscreen %d: EV_ABS ! Uknown Code=%X Value=%X\n", j, ie.code, ie.value);
@@ -112,6 +142,26 @@ int main()
                                 break;
                         }
 
+                        switch(touchEvent[slot].state)
+                        {
+                            case 0x17:
+                                printf("Touchscreen %d: Slot=%d Touch   at [%dx%d]\n", j, slot, touchEvent[slot].x, touchEvent[slot].y);
+                                touchEvent[slot].state |= 0x8;
+                                touchEvent[slot].state &= ~0x10;
+                                break;
+                            case 0x1F:
+                                if (touchEvent[slot].trackingID == -1)
+                                {
+                                    printf("Touchscreen %d: Slot=%d Release at [%dx%d]\n", j, slot, touchEvent[slot].x, touchEvent[slot].y);
+                                    touchEvent[slot].state = 0x0;
+                                }
+                                else
+                                {
+                                    touchEvent[slot].state &= ~0x10;
+                                    printf("Touchscreen %d: Slot=%d Move    to [%dx%d]\n", j, slot, touchEvent[slot].x, touchEvent[slot].y);
+                                }
+                                break;
+                        }
                     }
 
                     //fflush(stdout);
