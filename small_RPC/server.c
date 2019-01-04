@@ -14,6 +14,8 @@ int main(int argc, char **argv)
 {
     int socket_descriptor;
     struct sockaddr_in address;
+    struct in_addr multicast_interface;
+    struct ip_mreq command;
         
     if(argv[1])
     {
@@ -25,6 +27,28 @@ int main(int argc, char **argv)
             perror("socket()");
             exit(EXIT_FAILURE);
         }
+        multicast_interface.s_addr = inet_addr("192.168.33.1");
+        // Set which outgoing interface to use
+        if(setsockopt(socket_descriptor, IPPROTO_IP, IP_MULTICAST_IF, (char*)&multicast_interface, sizeof(multicast_interface)) < 0)
+        {
+            perror("setsockopt:IP_MULTICAST_IF\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        /* Join the broadcast group: */
+        command.imr_multiaddr.s_addr = inet_addr("224.0.33.33");
+        command.imr_interface.s_addr = htonl(INADDR_ANY);
+        if(command.imr_multiaddr.s_addr == -1) 
+        {
+            perror("224.0.33.33 ist keine Multicast-Adresse\n");
+            exit(EXIT_FAILURE);
+        }
+        if(setsockopt(socket_descriptor, IPPROTO_IP, IP_ADD_MEMBERSHIP, &command, sizeof(command)) < 0) 
+        {
+            perror("setsockopt:IP_ADD_MEMBERSHIP\n");
+        }
+        
+        
         memset(&address, 0, sizeof(address));
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = inet_addr("224.0.33.33");
@@ -33,8 +57,8 @@ int main(int argc, char **argv)
         if (sendto(socket_descriptor, argv[1], strlen(argv[1]),
                     0, (struct sockaddr *) &address, sizeof(address)) < 0) 
         {
-        perror("sendto()");
-        exit(EXIT_FAILURE);
+            perror("sendto()\n");
+            exit(EXIT_FAILURE);
         }
     }
 
